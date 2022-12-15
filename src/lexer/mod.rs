@@ -1,7 +1,7 @@
 use nom::{
     branch::alt,
     bytes::complete::{tag, escaped},
-    character::complete::{alpha1, alphanumeric1, newline, digit1, multispace0, line_ending, space0},
+    character::complete::{alpha1, alphanumeric1, newline, digit1, multispace0, line_ending, space0, one_of},
     combinator::{recognize, map_res, map},
     multi::{many0_count, many0},
     sequence::{pair, delimited},
@@ -107,7 +107,7 @@ fn lit(input : &str) -> IResult<&str, Token> {
     alt((
         map(float, |f| Token::Lit(Lit::Float(f))),
         map(integer, |i| Token::Lit(Lit::Int(i))),
-        //map(string, |s| Token::Lit(Lit::String(s))),
+        map(string, |s| Token::Lit(Lit::String(s))),
         map(boolean, |b| Token::Lit(Lit::Bool(b)))
     ))(input)
 }
@@ -125,6 +125,15 @@ fn boolean(input : &str) -> IResult<&str, bool> {
 
 fn float(input : &str) -> IResult<&str, f64> {
     map_res(recognize(pair(digit1, pair(tag("."), digit1))), |s: &str| s.parse())(input)
+}
+
+fn string(input : &str) -> IResult<&str, String> {
+    let res = delimited(tag("\""), escaped(alphanumeric1, '\\', one_of("\"n\\")), tag("\""))(input);
+    match res {
+        Ok((i, o)) => Ok((i, o.to_string())),
+        Err(e) => Err(e)
+    }
+
 }
 
 fn indent(input: &str, depth: usize) -> IResult<&str, Option<(Token,usize)>> {
