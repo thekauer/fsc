@@ -1,7 +1,7 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag},
-    character::complete::{alpha1, alphanumeric1, digit1, line_ending, space0},
+    bytes::complete::{tag, escaped},
+    character::complete::{alpha1, alphanumeric1, newline, digit1, multispace0, line_ending, space0},
     combinator::{recognize, map_res, map},
     multi::{many0_count, many0},
     sequence::{pair, delimited},
@@ -78,9 +78,9 @@ pub fn lex(input : &str) -> Vec<Token> {
 fn lex_line(input: &str, depth : usize) -> IResult<&str, Option<(Vec<Token>,usize)>> {
     let (input, indentation) =  indent(input, depth)?;
     let (input, tokens) = many0(alt((
+        ws(lit),
         ws(identifier_or_keyword),
-        ws(symbol),
-        ws(lit)
+        ws(symbol)
         )))(input)?;
     let (input, _) = line_ending(input)?;
     if let Some((indent_token,indent)) = indentation {
@@ -105,10 +105,10 @@ fn ws<'a, F: 'a, O, E: ParseError<&'a str>>(inner: F) -> impl FnMut(&'a str) -> 
 
 fn lit(input : &str) -> IResult<&str, Token> {
     alt((
-        //map(float, |f| Token::Lit(Lit::Float(f))),
+        map(float, |f| Token::Lit(Lit::Float(f))),
         map(integer, |i| Token::Lit(Lit::Int(i))),
         //map(string, |s| Token::Lit(Lit::String(s))),
-        //map(boolean, |b| Token::Lit(Lit::Bool(b)))
+        map(boolean, |b| Token::Lit(Lit::Bool(b)))
     ))(input)
 }
 
@@ -116,6 +116,16 @@ fn integer(input : &str) -> IResult<&str, i64> {
     map_res(digit1, |s: &str| s.parse())(input)
 }
 
+fn boolean(input : &str) -> IResult<&str, bool> {
+    alt((
+        map(tag("true"), |_| true),
+        map(tag("false"), |_| false)
+    ))(input)
+}
+
+fn float(input : &str) -> IResult<&str, f64> {
+    map_res(recognize(pair(digit1, pair(tag("."), digit1))), |s: &str| s.parse())(input)
+}
 
 fn indent(input: &str, depth: usize) -> IResult<&str, Option<(Token,usize)>> {
     let (input, indent) = many0_count(tag(" "))(input)?;
