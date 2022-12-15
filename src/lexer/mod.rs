@@ -1,11 +1,11 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag, escaped},
-    character::complete::{alpha1, alphanumeric1, newline, digit1, none_of, one_of},
+    bytes::complete::{tag},
+    character::complete::{alpha1, alphanumeric1, digit1, line_ending, space0},
     combinator::{recognize, map_res, map},
     multi::{many0_count, many0},
     sequence::{pair, delimited},
-    IResult,
+    IResult, error::ParseError,
 };
 
 #[derive(Debug, PartialEq)]
@@ -78,11 +78,11 @@ pub fn lex(input : &str) -> Vec<Token> {
 fn lex_line(input: &str, depth : usize) -> IResult<&str, Option<(Vec<Token>,usize)>> {
     let (input, indentation) =  indent(input, depth)?;
     let (input, tokens) = many0(alt((
-        identifier_or_keyword,
-        symbol,
-        lit
+        ws(identifier_or_keyword),
+        ws(symbol),
+        ws(lit)
         )))(input)?;
-    let (input, _) = newline(input)?;
+    let (input, _) = line_ending(input)?;
     if let Some((indent_token,indent)) = indentation {
         let mut result = vec![indent_token];
         result.extend(tokens);
@@ -90,6 +90,17 @@ fn lex_line(input: &str, depth : usize) -> IResult<&str, Option<(Vec<Token>,usiz
     } else {
         Ok((input, Some((tokens, depth))))
     }
+}
+
+fn ws<'a, F: 'a, O, E: ParseError<&'a str>>(inner: F) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
+  where
+  F: Fn(&'a str) -> IResult<&'a str, O, E>,
+{
+  delimited(
+    space0,
+    inner,
+    space0
+  )
 }
 
 fn lit(input : &str) -> IResult<&str, Token> {
